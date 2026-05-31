@@ -1,0 +1,51 @@
+name: "Maintainer Flow"
+description: "Review pull requests, triage issues, and check release readiness for OSS maintainers."
+author: "Maintainer Flow contributors"
+branding:
+  icon: "git-pull-request"
+  color: "green"
+inputs:
+  mode:
+    description: "Analysis mode: auto, pr, issue, or release."
+    required: false
+    default: "auto"
+  comment:
+    description: "Create or update a GitHub comment with the maintainer report."
+    required: false
+    default: "true"
+  fail-on:
+    description: "Fail the action when risk is at least this level: none, medium, or high."
+    required: false
+    default: "none"
+  report-path:
+    description: "Optional path to write the markdown report."
+    required: false
+    default: "maintainer-flow-report.md"
+  diff-path:
+    description: "Optional path to a unified diff file. If omitted, pull request diffs are fetched from GitHub."
+    required: false
+  github-token:
+    description: "Token used to read pull request diffs and write comments."
+    required: false
+    default: ${{ github.token }}
+  openai-api-key:
+    description: "Optional API key for OpenAI-compatible agent summaries."
+    required: false
+  openai-base-url:
+    description: "Optional OpenAI-compatible base URL."
+    required: false
+    default: "https://api.openai.com/v1"
+  openai-model:
+    description: "Optional model for agent summaries."
+    required: false
+    default: "gpt-4.1-mini"
+outputs:
+  risk:
+    description: "Overall risk level: low, medium, or high."
+  summary:
+    description: "One-line maintainer summary."
+  report-path:
+    description: "Path to the generated markdown report."
+runs:
+  using: "node20"
+  main: "dist/action/index.js"

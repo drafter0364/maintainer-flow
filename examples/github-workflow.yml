@@ -1,0 +1,24 @@
+name: Maintainer Flow
+
+on:
+  pull_request:
+  issues:
+    types: [opened, edited]
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maintainer-flow/maintainer-flow@v0
+        with:
+          mode: auto
+          comment: true
+          fail-on: high

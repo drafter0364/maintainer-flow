@@ -1,0 +1,58 @@
+{
+  "name": "maintainer-flow",
+  "version": "0.1.0",
+  "description": "Agent-ready CLI and GitHub Action for open-source maintainers.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "maintainer-flow": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "action.yml",
+    "README.md",
+    "README.zh-CN.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && npm run build:action",
+    "build:action": "ncc build src/action.ts -o dist/action --target es2022 --license licenses.txt",
+    "check": "npm run lint && npm test && npm run build",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepack": "npm run build"
+  },
+  "keywords": [
+    "github-action",
+    "open-source",
+    "maintainers",
+    "triage",
+    "pull-request",
+    "agent",
+    "oss"
+  ],
+  "author": "Maintainer Flow contributors",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@actions/core": "^3.0.1",
+    "@actions/github": "^9.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@vercel/ncc": "^0.38.4",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.14"
+  }
+}
