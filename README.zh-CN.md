@@ -75,7 +75,7 @@ jobs:
   maintainer-flow:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: drafter0364/maintainer-flow@main
         with:
           mode: auto
