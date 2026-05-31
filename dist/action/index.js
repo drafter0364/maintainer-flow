@@ -36321,6 +36321,13 @@ function isAtLeastRisk(actual, threshold) {
 function riskRank(risk) {
     return weights[risk];
 }
+function parseFailOnRisk(value, fallback = "none") {
+    if (!value)
+        return fallback;
+    if (value === "none" || value === "low" || value === "medium" || value === "high")
+        return value;
+    throw new Error(`Invalid fail-on value "${value}". Expected one of: none, low, medium, high.`);
+}
 
 ;// CONCATENATED MODULE: ./src/analyzers/diff.ts
 
@@ -36825,8 +36832,8 @@ async function run() {
             warning(`Comment skipped: ${message}`);
         }
     }
-    const failOn = getInput("fail-on") || "none";
-    if (failOn !== "none" && isRiskLevel(failOn) && isAtLeastRisk(result.risk, failOn)) {
+    const failOn = parseFailOnRisk(getInput("fail-on"), "none");
+    if (failOn !== "none" && isAtLeastRisk(result.risk, failOn)) {
         setFailed(`Maintainer Flow risk ${result.risk} meets fail-on threshold ${failOn}.`);
     }
 }
@@ -36876,7 +36883,15 @@ function readGitDiff() {
         });
     }
     catch {
-        return "";
+        try {
+            return (0,external_node_child_process_namespaceObject.execFileSync)("git", ["show", "--format=", "--unified=0", "HEAD"], {
+                encoding: "utf8",
+                stdio: ["ignore", "pipe", "ignore"]
+            });
+        }
+        catch {
+            return "";
+        }
     }
 }
 async function maybeAgentSummary(result, diffPath) {
@@ -36932,9 +36947,6 @@ async function upsertComment(token, mode, event, report) {
 }
 function labelsFromEvent(labels) {
     return labels?.map((label) => (typeof label === "string" ? label : label.name ?? "")).filter(Boolean);
-}
-function isRiskLevel(value) {
-    return value === "low" || value === "medium" || value === "high";
 }
 run().catch((error) => {
     const message = error instanceof Error ? error.message : String(error);

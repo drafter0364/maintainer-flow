@@ -8,7 +8,7 @@ import { analyzeRelease } from "./analyzers/release.js";
 import { createAgentSummary } from "./ai/openaiCompatible.js";
 import { readJsonFile, readTextFile, writeTextFile } from "./io.js";
 import { resultToMarkdown } from "./report.js";
-import { isAtLeastRisk } from "./risk.js";
+import { isAtLeastRisk, parseFailOnRisk } from "./risk.js";
 const markerPrefix = "<!-- maintainer-flow:";
 async function run() {
     const mode = getMode();
@@ -60,8 +60,8 @@ async function run() {
             core.warning(`Comment skipped: ${message}`);
         }
     }
-    const failOn = core.getInput("fail-on") || "none";
-    if (failOn !== "none" && isRiskLevel(failOn) && isAtLeastRisk(result.risk, failOn)) {
+    const failOn = parseFailOnRisk(core.getInput("fail-on"), "none");
+    if (failOn !== "none" && isAtLeastRisk(result.risk, failOn)) {
         core.setFailed(`Maintainer Flow risk ${result.risk} meets fail-on threshold ${failOn}.`);
     }
 }
@@ -111,7 +111,15 @@ function readGitDiff() {
         });
     }
     catch {
-        return "";
+        try {
+            return execFileSync("git", ["show", "--format=", "--unified=0", "HEAD"], {
+                encoding: "utf8",
+                stdio: ["ignore", "pipe", "ignore"]
+            });
+        }
+        catch {
+            return "";
+        }
     }
 }
 async function maybeAgentSummary(result, diffPath) {
@@ -167,9 +175,6 @@ async function upsertComment(token, mode, event, report) {
 }
 function labelsFromEvent(labels) {
     return labels?.map((label) => (typeof label === "string" ? label : label.name ?? "")).filter(Boolean);
-}
-function isRiskLevel(value) {
-    return value === "low" || value === "medium" || value === "high";
 }
 run().catch((error) => {
     const message = error instanceof Error ? error.message : String(error);

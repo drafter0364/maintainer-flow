@@ -5,7 +5,7 @@ import { analyzeRelease } from "./analyzers/release.js";
 import { createAgentSummary } from "./ai/openaiCompatible.js";
 import { readJsonFile, readTextFile, writeTextFile } from "./io.js";
 import { resultToMarkdown } from "./report.js";
-import { isAtLeastRisk } from "./risk.js";
+import { isAtLeastRisk, parseFailOnRisk } from "./risk.js";
 async function main() {
     const [command, ...rest] = process.argv.slice(2);
     if (!command || command === "help" || command === "--help" || command === "-h") {
@@ -58,8 +58,8 @@ async function main() {
     else {
         process.stdout.write(output);
     }
-    const failOn = stringFlag(flags, "fail-on");
-    if (failOn && failOn !== "none" && isRiskLevel(failOn) && isAtLeastRisk(result.risk, failOn)) {
+    const failOn = parseFailOnRisk(stringFlag(flags, "fail-on"));
+    if (failOn !== "none" && isAtLeastRisk(result.risk, failOn)) {
         process.exitCode = 1;
     }
 }
@@ -113,9 +113,6 @@ function stringFlag(flags, key) {
     const value = flags[key];
     return typeof value === "string" ? value : undefined;
 }
-function isRiskLevel(value) {
-    return value === "low" || value === "medium" || value === "high";
-}
 function printHelp() {
     process.stdout.write(`Maintainer Flow
 
@@ -129,7 +126,7 @@ Options:
   --format json             Print JSON instead of Markdown.
   --json                    Alias for --format json.
   --output <path>           Write report to a file.
-  --fail-on <risk>          Exit 1 when risk is at least low, medium, or high.
+  --fail-on <risk>          Exit 1 when risk is at least low, medium, or high; use none to disable.
   --openai-api-key <key>    Enable OpenAI-compatible agent summary.
   --openai-base-url <url>   Override API base URL.
   --openai-model <model>    Override model.

@@ -14,7 +14,7 @@ inputs:
     required: false
     default: "true"
   fail-on:
-    description: "Fail the action when risk is at least this level: none, medium, or high."
+    description: "Fail the action when risk is at least this level: none, low, medium, or high."
     required: false
     default: "none"
   report-path:
