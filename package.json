@@ -42,6 +42,17 @@
   ],
   "author": "Maintainer Flow contributors",
   "license": "MIT",
+  "homepage": "https://github.com/drafter0364/maintainer-flow#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/drafter0364/maintainer-flow.git"
+  },
+  "bugs": {
+    "url": "https://github.com/drafter0364/maintainer-flow/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=20"
   },

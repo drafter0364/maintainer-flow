@@ -14,7 +14,7 @@ Useful commands:
 - `npm test`: run unit tests.
 - `npm run lint`: run TypeScript checks.
 - `npm run build`: compile the CLI and bundle the GitHub Action.
-- `npx maintainer-flow pr --diff pr.diff`: test the CLI after building.
+- `node dist/cli.js pr --diff pr.diff`: test the CLI after building.
 
 ## Pull request expectations
 

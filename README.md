@@ -1,12 +1,12 @@
 # Maintainer Flow
 
-![CI](https://img.shields.io/badge/CI-npm%20run%20check-green)
-![Node](https://img.shields.io/badge/node-%3E%3D20-green)
+[![CI](https://github.com/drafter0364/maintainer-flow/actions/workflows/ci.yml/badge.svg)](https://github.com/drafter0364/maintainer-flow/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/drafter0364/maintainer-flow/actions/workflows/codeql.yml/badge.svg)](https://github.com/drafter0364/maintainer-flow/actions/workflows/codeql.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 Maintainer Flow is an agent-ready CLI and GitHub Action for open-source maintainers. It reviews pull requests, triages issues, and checks release readiness without taking control away from humans.
 
-[中文说明](README.zh-CN.md)
+[中文说明](README.zh-CN.md) · [Roadmap](ROADMAP.md)
 
 ## Why this exists
 
@@ -25,7 +25,7 @@ The default engine is deterministic and works without an API key. If you provide
 
 ## Quick start
 
-Install locally:
+From a local clone:
 
 ```bash
 npm install
@@ -36,13 +36,13 @@ Analyze a pull request diff:
 
 ```bash
 git diff --unified=0 origin/main...HEAD > pr.diff
-npx maintainer-flow pr --diff pr.diff
+node dist/cli.js pr --diff pr.diff
 ```
 
 Analyze an issue from text:
 
 ```bash
-npx maintainer-flow issue \
+node dist/cli.js issue \
   --title "Bug: app crashes on startup" \
   --body "It crashes on startup." \
   --labels bug
@@ -51,7 +51,7 @@ npx maintainer-flow issue \
 Generate JSON for another agent or bot:
 
 ```bash
-npx maintainer-flow pr --diff pr.diff --format json
+node dist/cli.js pr --diff pr.diff --format json
 ```
 
 ## GitHub Action
@@ -76,7 +76,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: maintainer-flow/maintainer-flow@v0
+      - uses: drafter0364/maintainer-flow@main
         with:
           mode: auto
           comment: true
@@ -86,7 +86,7 @@ jobs:
 Optional agent summary:
 
 ```yaml
-      - uses: maintainer-flow/maintainer-flow@v0
+      - uses: drafter0364/maintainer-flow@main
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           openai-model: gpt-4.1-mini
@@ -117,6 +117,8 @@ Common options:
 - `--openai-api-key <key>`: enable the optional agent summary.
 - `--openai-base-url <url>`: use another OpenAI-compatible endpoint.
 - `--openai-model <model>`: select the model for summaries.
+
+Once this package is published to npm, the same commands can be run with `npx maintainer-flow@latest ...`. Until a release tag exists, GitHub Action examples use `@main`; production workflows should pin a version tag or commit SHA.
 
 ## Project status
 
