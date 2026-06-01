@@ -36352,8 +36352,8 @@ const testPathPattern = /(^|\/)(__tests__|tests?|spec)\//i;
 const testFilePattern = /(\.|-)(test|spec)\.[cm]?[jt]sx?$|_test\.(go|py)$/i;
 const docsPathPattern = /(^|\/)(docs?|website)\//i;
 const docsFilePattern = /(^|\/)(readme|changelog|contributing|security|code_of_conduct|license)(\..*)?$/i;
-const ciPathPattern = /(^|\/)(\.github\/workflows|\.gitlab-ci\.yml|azure-pipelines\.yml|circle\.yml)/i;
-const securityPathPattern = /(^|\/)(auth|oauth|crypto|security|permissions?|secrets?)($|\/|\.)/i;
+const ciPathPattern = /(^|\/)(\.github\/workflows\/[^/]+\.ya?ml|\.gitlab-ci\.ya?ml|azure-pipelines\.ya?ml|\.circleci\/config\.ya?ml|circle\.ya?ml)$/i;
+const securityPathPattern = /(^|\/)(auth[a-z0-9_-]*|oauth[a-z0-9_-]*|crypto[a-z0-9_-]*|security|permissions?|secrets?)(?=$|\/|\.)/i;
 function parseUnifiedDiff(diff) {
     const files = [];
     let current;
@@ -36594,10 +36594,10 @@ function inferLabels(text) {
 }
 function missingBugSections(body) {
     const checks = [
-        ["steps to reproduce", /(reproduce|steps|minimal|repo|sandbox)/i],
-        ["expected behavior", /(expected|should)/i],
-        ["actual behavior", /(actual|instead|got|happened)/i],
-        ["environment", /(version|node|python|browser|os|environment|platform)/i]
+        ["steps to reproduce", /(^|\n)\s*(steps? to reproduce|reproduction|minimal repro|minimal reproduction)\s*:?/i],
+        ["expected behavior", /(^|\n)\s*expected(\s+(behavior|behaviour|result|output))?\s*:?/i],
+        ["actual behavior", /(^|\n)\s*(actual(\s+(behavior|behaviour|result|output))?|observed behavior)\s*:?/i],
+        ["environment", /(^|\n)\s*(environment|runtime|platform|versions?)\s*:?/i]
     ];
     return checks.filter(([, pattern]) => !pattern.test(body)).map(([label]) => label);
 }
@@ -36695,6 +36695,7 @@ async function createAgentSummary(result, options) {
         return undefined;
     const baseUrl = (options.baseUrl || "https://api.openai.com/v1").replace(/\/+$/, "");
     const model = options.model || "gpt-4.1-mini";
+    const context = truncateText(options.context ?? "", options.maxContextCharacters ?? 12_000);
     const body = {
         model,
         temperature: 0.2,
@@ -36705,26 +36706,60 @@ async function createAgentSummary(result, options) {
             },
             {
                 role: "user",
-                content: truncateText(JSON.stringify({
+                content: JSON.stringify({
                     analysis: result,
-                    context: options.context ?? ""
-                }, null, 2))
+                    context
+                }, null, 2)
             }
         ]
     };
-    const response = await fetch(`${baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-            authorization: `Bearer ${options.apiKey}`,
-            "content-type": "application/json"
-        },
-        body: JSON.stringify(body)
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 60_000);
+    let response;
+    try {
+        response = await fetch(`${baseUrl}/chat/completions`, {
+            method: "POST",
+            headers: {
+                authorization: `Bearer ${options.apiKey}`,
+                "content-type": "application/json"
+            },
+            body: JSON.stringify(body),
+            signal: controller.signal
+        });
+    }
+    catch (error) {
+        if (isAbortError(error)) {
+            throw new Error(`Agent summary request timed out after ${options.timeoutMs ?? 60_000}ms.`);
+        }
+        throw error;
+    }
+    finally {
+        clearTimeout(timeout);
+    }
     const payload = (await response.json());
     if (!response.ok) {
         throw new Error(payload.error?.message || `Agent summary request failed with HTTP ${response.status}`);
     }
     return payload.choices?.[0]?.message?.content?.trim();
+}
+function isAbortError(error) {
+    return typeof error === "object" && error !== null && "name" in error && error.name === "AbortError";
+}
+
+;// CONCATENATED MODULE: ./src/actionHelpers.ts
+function selectMode(mode, event) {
+    if (mode !== "auto")
+        return mode;
+    if (event.pull_request)
+        return "pr";
+    if (event.issue && !event.issue.pull_request)
+        return "issue";
+    if (event.release)
+        return "release";
+    throw new Error("Maintainer Flow could not infer a mode from this event. Set mode to pr, issue, or release.");
+}
+function labelsFromEvent(labels) {
+    return labels?.map((label) => (typeof label === "string" ? label : label.name ?? "")).filter(Boolean);
 }
 
 ;// CONCATENATED MODULE: ./src/report.ts
@@ -36781,7 +36816,9 @@ function formatFinding(finding) {
 
 
 
+
 const markerPrefix = "<!-- maintainer-flow:";
+const githubRequestTimeoutMs = 15_000;
 async function run() {
     const mode = getMode();
     const event = readEvent();
@@ -36849,22 +36886,11 @@ function readEvent() {
         return {};
     return readJsonFile(eventPath);
 }
-function selectMode(mode, event) {
-    if (mode !== "auto")
-        return mode;
-    if (event.pull_request)
-        return "pr";
-    if (event.issue && !event.issue.pull_request)
-        return "issue";
-    if (event.release)
-        return "release";
-    return "release";
-}
 async function fetchPullRequestDiff(token, event) {
     const pullNumber = event.pull_request?.number;
     if (!token || !pullNumber)
         return "";
-    const octokit = getOctokit(token);
+    const octokit = action_getOctokit(token);
     const response = await octokit.request("GET /repos/{owner}/{repo}/pulls/{pull_number}", {
         owner: github_context.repo.owner,
         repo: github_context.repo.repo,
@@ -36916,18 +36942,18 @@ async function upsertComment(token, mode, event, report) {
     const issueNumber = event.pull_request?.number ?? event.issue?.number;
     if (!token || !issueNumber)
         return;
-    const octokit = getOctokit(token);
+    const octokit = action_getOctokit(token);
     const marker = `${markerPrefix}${mode}:${issueNumber} -->`;
     const body = `${report}\n${marker}`;
     const owner = github_context.repo.owner;
     const repo = github_context.repo.repo;
-    const comments = await octokit.rest.issues.listComments({
+    const comments = await octokit.paginate(octokit.rest.issues.listComments, {
         owner,
         repo,
         issue_number: issueNumber,
         per_page: 100
     });
-    const existing = comments.data.find((comment) => comment.body?.includes(marker));
+    const existing = comments.find((comment) => isActionComment(comment, marker));
     if (existing) {
         await octokit.rest.issues.updateComment({
             owner,
@@ -36945,8 +36971,15 @@ async function upsertComment(token, mode, event, report) {
         });
     }
 }
-function labelsFromEvent(labels) {
-    return labels?.map((label) => (typeof label === "string" ? label : label.name ?? "")).filter(Boolean);
+function action_getOctokit(token) {
+    return getOctokit(token, {
+        request: {
+            timeout: githubRequestTimeoutMs
+        }
+    });
+}
+function isActionComment(comment, marker) {
+    return comment.user?.type === "Bot" && comment.user.login === "github-actions[bot]" && Boolean(comment.body?.includes(marker));
 }
 run().catch((error) => {
     const message = error instanceof Error ? error.message : String(error);

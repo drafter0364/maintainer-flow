@@ -88,10 +88,10 @@ function inferLabels(text: string): string[] {
 
 function missingBugSections(body: string): string[] {
   const checks: Array<[string, RegExp]> = [
-    ["steps to reproduce", /(reproduce|steps|minimal|repo|sandbox)/i],
-    ["expected behavior", /(expected|should)/i],
-    ["actual behavior", /(actual|instead|got|happened)/i],
-    ["environment", /(version|node|python|browser|os|environment|platform)/i]
+    ["steps to reproduce", /(^|\n)\s*(steps? to reproduce|reproduction|minimal repro|minimal reproduction)\s*:?/i],
+    ["expected behavior", /(^|\n)\s*expected(\s+(behavior|behaviour|result|output))?\s*:?/i],
+    ["actual behavior", /(^|\n)\s*(actual(\s+(behavior|behaviour|result|output))?|observed behavior)\s*:?/i],
+    ["environment", /(^|\n)\s*(environment|runtime|platform|versions?)\s*:?/i]
   ];
 
   return checks.filter(([, pattern]) => !pattern.test(body)).map(([label]) => label);

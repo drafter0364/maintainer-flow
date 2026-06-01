@@ -6,34 +6,15 @@ import { analyzePullRequest } from "./analyzers/diff.js";
 import { analyzeIssue } from "./analyzers/issue.js";
 import { analyzeRelease } from "./analyzers/release.js";
 import { createAgentSummary } from "./ai/openaiCompatible.js";
+import { labelsFromEvent, selectMode } from "./actionHelpers.js";
 import { readJsonFile, readTextFile, writeTextFile } from "./io.js";
 import { resultToMarkdown } from "./report.js";
 import { isAtLeastRisk, parseFailOnRisk } from "./risk.js";
 import type { AnalysisResult } from "./types.js";
-
-interface ActionEvent {
-  pull_request?: {
-    number?: number;
-    title?: string;
-    body?: string;
-  };
-  issue?: {
-    number?: number;
-    title?: string;
-    body?: string;
-    pull_request?: unknown;
-    labels?: Array<string | { name?: string }>;
-  };
-  release?: {
-    tag_name?: string;
-    body?: string;
-  };
-}
-
-type EventLabel = string | { name?: string };
-type Mode = "auto" | "pr" | "issue" | "release";
+import type { ActionEvent, Mode, SelectedMode } from "./actionHelpers.js";
 
 const markerPrefix = "<!-- maintainer-flow:";
+const githubRequestTimeoutMs = 15_000;
 
 async function run(): Promise<void> {
   const mode = getMode();
@@ -106,19 +87,11 @@ function readEvent(): ActionEvent {
   return readJsonFile<ActionEvent>(eventPath);
 }
 
-function selectMode(mode: Mode, event: ActionEvent): Exclude<Mode, "auto"> {
-  if (mode !== "auto") return mode;
-  if (event.pull_request) return "pr";
-  if (event.issue && !event.issue.pull_request) return "issue";
-  if (event.release) return "release";
-  return "release";
-}
-
 async function fetchPullRequestDiff(token: string, event: ActionEvent): Promise<string> {
   const pullNumber = event.pull_request?.number;
   if (!token || !pullNumber) return "";
 
-  const octokit = github.getOctokit(token);
+  const octokit = getOctokit(token);
   const response = await octokit.request("GET /repos/{owner}/{repo}/pulls/{pull_number}", {
     owner: github.context.repo.owner,
     repo: github.context.repo.repo,
@@ -167,22 +140,22 @@ async function maybeAgentSummary(result: AnalysisResult, diffPath: string): Prom
   }
 }
 
-async function upsertComment(token: string, mode: Exclude<Mode, "auto">, event: ActionEvent, report: string): Promise<void> {
+async function upsertComment(token: string, mode: SelectedMode, event: ActionEvent, report: string): Promise<void> {
   const issueNumber = event.pull_request?.number ?? event.issue?.number;
   if (!token || !issueNumber) return;
 
-  const octokit = github.getOctokit(token);
+  const octokit = getOctokit(token);
   const marker = `${markerPrefix}${mode}:${issueNumber} -->`;
   const body = `${report}\n${marker}`;
   const owner = github.context.repo.owner;
   const repo = github.context.repo.repo;
-  const comments = await octokit.rest.issues.listComments({
+  const comments = await octokit.paginate(octokit.rest.issues.listComments, {
     owner,
     repo,
     issue_number: issueNumber,
     per_page: 100
   });
-  const existing = comments.data.find((comment) => comment.body?.includes(marker));
+  const existing = comments.find((comment) => isActionComment(comment, marker));
 
   if (existing) {
     await octokit.rest.issues.updateComment({
@@ -201,8 +174,16 @@ async function upsertComment(token: string, mode: Exclude<Mode, "auto">, event: 
   }
 }
 
-function labelsFromEvent(labels: EventLabel[] | undefined): string[] | undefined {
-  return labels?.map((label) => (typeof label === "string" ? label : label.name ?? "")).filter(Boolean);
+function getOctokit(token: string): ReturnType<typeof github.getOctokit> {
+  return github.getOctokit(token, {
+    request: {
+      timeout: githubRequestTimeoutMs
+    }
+  });
+}
+
+function isActionComment(comment: { body?: string | null; user?: { login?: string; type?: string } | null }, marker: string): boolean {
+  return comment.user?.type === "Bot" && comment.user.login === "github-actions[bot]" && Boolean(comment.body?.includes(marker));
 }
 
 run().catch((error: unknown) => {

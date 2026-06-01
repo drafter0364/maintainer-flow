@@ -6,6 +6,8 @@ export interface AgentSummaryOptions {
   baseUrl?: string;
   model?: string;
   context?: string;
+  timeoutMs?: number;
+  maxContextCharacters?: number;
 }
 
 interface ChatCompletionResponse {
@@ -27,6 +29,7 @@ export async function createAgentSummary(
 
   const baseUrl = (options.baseUrl || "https://api.openai.com/v1").replace(/\/+$/, "");
   const model = options.model || "gpt-4.1-mini";
+  const context = truncateText(options.context ?? "", options.maxContextCharacters ?? 12_000);
   const body = {
     model,
     temperature: 0.2,
@@ -38,28 +41,40 @@ export async function createAgentSummary(
       },
       {
         role: "user",
-        content: truncateText(
-          JSON.stringify(
-            {
-              analysis: result,
-              context: options.context ?? ""
-            },
-            null,
-            2
-          )
+        content: JSON.stringify(
+          {
+            analysis: result,
+            context
+          },
+          null,
+          2
         )
       }
     ]
   };
 
-  const response = await fetch(`${baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${options.apiKey}`,
-      "content-type": "application/json"
-    },
-    body: JSON.stringify(body)
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 60_000);
+  let response: Response;
+
+  try {
+    response = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${options.apiKey}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw new Error(`Agent summary request timed out after ${options.timeoutMs ?? 60_000}ms.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const payload = (await response.json()) as ChatCompletionResponse;
   if (!response.ok) {
@@ -67,4 +82,8 @@ export async function createAgentSummary(
   }
 
   return payload.choices?.[0]?.message?.content?.trim();
+}
+
+function isAbortError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "name" in error && error.name === "AbortError";
 }

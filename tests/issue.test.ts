@@ -23,4 +23,15 @@ describe("issue analysis", () => {
     expect(result.risk).toBe("medium");
     expect(result.findings.some((finding) => finding.title.includes("reproducibility"))).toBe(true);
   });
+
+  it("does not treat casual words as structured bug report sections", () => {
+    const result = analyzeIssue({
+      title: "Bug: error when saving",
+      body: "You should also check the logs. I got an error email on Windows.",
+      labels: ["bug"]
+    });
+
+    expect(result.findings.some((finding) => finding.details.includes("expected behavior"))).toBe(true);
+    expect(result.findings.some((finding) => finding.details.includes("actual behavior"))).toBe(true);
+  });
 });

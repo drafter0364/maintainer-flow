@@ -6,10 +6,12 @@ import { analyzePullRequest } from "./analyzers/diff.js";
 import { analyzeIssue } from "./analyzers/issue.js";
 import { analyzeRelease } from "./analyzers/release.js";
 import { createAgentSummary } from "./ai/openaiCompatible.js";
+import { labelsFromEvent, selectMode } from "./actionHelpers.js";
 import { readJsonFile, readTextFile, writeTextFile } from "./io.js";
 import { resultToMarkdown } from "./report.js";
 import { isAtLeastRisk, parseFailOnRisk } from "./risk.js";
 const markerPrefix = "<!-- maintainer-flow:";
+const githubRequestTimeoutMs = 15_000;
 async function run() {
     const mode = getMode();
     const event = readEvent();
@@ -77,22 +79,11 @@ function readEvent() {
         return {};
     return readJsonFile(eventPath);
 }
-function selectMode(mode, event) {
-    if (mode !== "auto")
-        return mode;
-    if (event.pull_request)
-        return "pr";
-    if (event.issue && !event.issue.pull_request)
-        return "issue";
-    if (event.release)
-        return "release";
-    return "release";
-}
 async function fetchPullRequestDiff(token, event) {
     const pullNumber = event.pull_request?.number;
     if (!token || !pullNumber)
         return "";
-    const octokit = github.getOctokit(token);
+    const octokit = getOctokit(token);
     const response = await octokit.request("GET /repos/{owner}/{repo}/pulls/{pull_number}", {
         owner: github.context.repo.owner,
         repo: github.context.repo.repo,
@@ -144,18 +135,18 @@ async function upsertComment(token, mode, event, report) {
     const issueNumber = event.pull_request?.number ?? event.issue?.number;
     if (!token || !issueNumber)
         return;
-    const octokit = github.getOctokit(token);
+    const octokit = getOctokit(token);
     const marker = `${markerPrefix}${mode}:${issueNumber} -->`;
     const body = `${report}\n${marker}`;
     const owner = github.context.repo.owner;
     const repo = github.context.repo.repo;
-    const comments = await octokit.rest.issues.listComments({
+    const comments = await octokit.paginate(octokit.rest.issues.listComments, {
         owner,
         repo,
         issue_number: issueNumber,
         per_page: 100
     });
-    const existing = comments.data.find((comment) => comment.body?.includes(marker));
+    const existing = comments.find((comment) => isActionComment(comment, marker));
     if (existing) {
         await octokit.rest.issues.updateComment({
             owner,
@@ -173,8 +164,15 @@ async function upsertComment(token, mode, event, report) {
         });
     }
 }
-function labelsFromEvent(labels) {
-    return labels?.map((label) => (typeof label === "string" ? label : label.name ?? "")).filter(Boolean);
+function getOctokit(token) {
+    return github.getOctokit(token, {
+        request: {
+            timeout: githubRequestTimeoutMs
+        }
+    });
+}
+function isActionComment(comment, marker) {
+    return comment.user?.type === "Bot" && comment.user.login === "github-actions[bot]" && Boolean(comment.body?.includes(marker));
 }
 run().catch((error) => {
     const message = error instanceof Error ? error.message : String(error);

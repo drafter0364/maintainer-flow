@@ -14,8 +14,12 @@ index 1111111..2222222 100644
 describe("diff analysis", () => {
   it("classifies common maintainer-sensitive paths", () => {
     expect(classifyFile(".github/workflows/ci.yml")).toBe("ci");
+    expect(classifyFile(".github/workflows/ci.yaml")).toBe("ci");
+    expect(classifyFile(".gitlab-ci.yaml")).toBe("ci");
     expect(classifyFile("package-lock.json")).toBe("dependency");
     expect(classifyFile("src/auth/session.ts")).toBe("security");
+    expect(classifyFile("src/authz.ts")).toBe("security");
+    expect(classifyFile("src/auth_middleware.go")).toBe("security");
     expect(classifyFile("tests/unit.test.ts")).toBe("test");
     expect(classifyFile("README.md")).toBe("docs");
   });

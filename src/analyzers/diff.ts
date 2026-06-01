@@ -30,8 +30,9 @@ const testPathPattern = /(^|\/)(__tests__|tests?|spec)\//i;
 const testFilePattern = /(\.|-)(test|spec)\.[cm]?[jt]sx?$|_test\.(go|py)$/i;
 const docsPathPattern = /(^|\/)(docs?|website)\//i;
 const docsFilePattern = /(^|\/)(readme|changelog|contributing|security|code_of_conduct|license)(\..*)?$/i;
-const ciPathPattern = /(^|\/)(\.github\/workflows|\.gitlab-ci\.yml|azure-pipelines\.yml|circle\.yml)/i;
-const securityPathPattern = /(^|\/)(auth|oauth|crypto|security|permissions?|secrets?)($|\/|\.)/i;
+const ciPathPattern =
+  /(^|\/)(\.github\/workflows\/[^/]+\.ya?ml|\.gitlab-ci\.ya?ml|azure-pipelines\.ya?ml|\.circleci\/config\.ya?ml|circle\.ya?ml)$/i;
+const securityPathPattern = /(^|\/)(auth[a-z0-9_-]*|oauth[a-z0-9_-]*|crypto[a-z0-9_-]*|security|permissions?|secrets?)(?=$|\/|\.)/i;
 
 export function parseUnifiedDiff(diff: string): DiffSummary {
   const files: ChangedFile[] = [];
