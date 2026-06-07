@@ -61,9 +61,9 @@
     "@actions/github": "^9.1.1"
   },
   "devDependencies": {
-    "@types/node": "^20.19.41",
+    "@types/node": "^20.19.42",
     "@vercel/ncc": "^0.38.4",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.14"
+    "vitest": "^4.1.8"
   }
 }
